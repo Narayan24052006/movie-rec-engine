@@ -30,3 +30,14 @@ Thumbs.db
 
 # Model artifacts
 *.pkl
+
+# Node.js (too large for git)
+node_modules/
+.next/
+.npm/
+*.tgz
+dist/
+
+# Next.js
+.next
+out/
