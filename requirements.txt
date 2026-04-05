@@ -10,6 +10,7 @@ scipy>=1.11.0
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0
 pydantic>=2.0.0
+requests>=2.28.0
 
 # Security & Auth
 passlib[bcrypt]>=1.7.4

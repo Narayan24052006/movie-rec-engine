@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 import json
 from src.api.database import init_db, create_user, is_username_taken, get_user_by_username, get_user_by_id, seed_existing_users, seed_admin, update_user_genres, add_to_wishlist, remove_from_wishlist, get_user_wishlist, is_in_wishlist, get_all_users, delete_user, promote_user_to_admin, demote_admin_to_user, get_all_movies_from_db, delete_movie
 from src.api.auth import get_password_hash, verify_password, create_access_token, get_current_user, validate_email, validate_password
+from src.api.data_downloader import download_movielens_data
 
 from src.api.schemas import (
     ExplanationResponse,
@@ -84,6 +85,11 @@ async def lifespan(app: FastAPI):
 
     logger.info("Creating default admin user...")
     seed_admin(lambda p: get_password_hash(p, skip_validation=True))
+
+    # Attempt to download MovieLens data if not present (for Render deployment)
+    logger.info("Checking for MovieLens data...")
+    if not download_movielens_data():
+        logger.warning("⚠️ Could not download MovieLens data. Models will not be available.")
 
     logger.info("Loading data from %s ...", DATA_DIR)
 
