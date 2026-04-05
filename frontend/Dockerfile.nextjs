@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies exclusively on package.json changes
+COPY package.json ./
+RUN npm install
+
+# Copy application source
+COPY . .
+
+# Bake the public API base URL at build time so the browser knows where to fetch
+ENV NEXT_PUBLIC_API_BASE=http://localhost:8000
+
+# Build for production
+RUN npm run build
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

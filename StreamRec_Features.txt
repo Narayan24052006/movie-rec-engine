@@ -1,0 +1,54 @@
+STREAMREC — HYBRID MOVIE RECOMMENDATION ENGINE
+==================================================
+
+1. ARCHITECTURE OVERVIEW
+-------------------------
+StreamRec is a decoupled, modern web application. It is divided into two separate microservices that communicate over HTTP using REST:
+- BACKEND: A high-performance Python FastAPI server powering the Machine Learning engine.
+- FRONTEND: A production-ready Next.js 15 Single Page Application (SPA) providing a Netflix-style UI.
+- INFRASTRUCTURE: Fully containerized with Docker, orchestrated automatically via Docker Compose.
+
+2. MACHINE LEARNING ENGINE (THE HYBRID MODEL)
+----------------------------------------------
+The core of the application blends two distinct AI models together to generate highly accurate recommendations:
+
+A. Collaborative Filtering (CF): 
+   - Uses a custom-built FunkSVD (Singular Value Decomposition) algorithm entirely built on NumPy.
+   - Learns "latent factors" to discover complex behavioral patterns (e.g. "users who watched Matrix also like Inception").
+   - Completely independent of C-extensions, allowing it to compile flawlessly across any Python version.
+
+B. Content-Based Filtering (CBF):
+   - Uses TF-IDF Vectorization over movie titles, tags, and genres.
+   - Converts textual plot/theme data into mathematical vectors to find movies that share the exact same "DNA" or storyline themes.
+
+C. The Hybrid Blender:
+   - Fuses CF and CBF outputs using a weighted scoring formula: (50% CF + 30% CBF + 10% Popularity + 10% Recency).
+   - This prevents the "filter bubble" effect and significantly increases recommendation accuracy.
+
+3. COLD-START MITIGATION
+-------------------------
+Standard AI engines break when dealing with new users (no rating history) or new movies (no viewership). StreamRec handles this gracefully:
+- New User Routing: Redirects unseen users to an interactive Quiz interface. Generates a custom profile using CBF centroids and popular matching genres.
+- New Item Routing: Falls back pure TF-IDF mathematical similarity for undiscovered movies.
+
+4. NEXT.JS FRONTEND FEATURES
+-----------------------------
+- 'For You' Feed: Personalized, dynamic rating grids.
+- 'Because You Watched' Graph: A debounced catalog search that triggers item-to-item similarity matching.
+- 'New User' Profiler: An interactive genre-selection form that instantly spins up an artificial user profile.
+- Explanation Engine: Clicking "Why this?" triggers an expanding UI modal that reveals the internal backend AI scores dynamically for absolute transparency.
+- Responsive CSS: Implemented strictly using modern Vanilla CSS / CSS Modules with responsive, flex/grid "glassmorphism" boundaries.
+
+5. API EXPOSED ROUTES
+----------------------
+- GET /recommendations/{user_id} : Central personalized feed generator.
+- GET /similar-items/{movie_id}  : Content-based discovery node.
+- GET /explain/{user_id}/{mid}   : Transparency/AI Explainability pipeline route.
+- POST /quiz                     : Cold-start injection handler.
+- GET /movies, /users, /health   : Catalogue and routing utility endpoints.
+
+6. DEPLOYMENT PIPELINE
+-----------------------
+- Handled cleanly via `rebuild.sh` script wrapping `docker-compose`.
+- Containerizes Node.js frontend and Python backend, wiring them securely across a closed Docker bridge network. 
+- Fully portable to AWS EC2, DigitalOcean, or Render.
