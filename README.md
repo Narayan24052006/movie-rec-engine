@@ -140,48 +140,56 @@ Backend:   https://movie-rec-engine-pheb.onrender.com
 API Docs:  https://movie-rec-engine-pheb.onrender.com/docs
 ```
 
-### Test Credentials
-```
-Admin Login:
-  Email: admin@gmail.com
-  Password: admin
+### 🧪 Try It Out
 
-Regular User (from MovieLens):
-  Email: user_1@gmail.com
-  Password: (any password)
-```
+Visit the **[live demo](https://movie-rec-engine-1.onrender.com)** and:
+
+1. **Create a new account** with any Gmail address and password
+2. **Complete the movie genre quiz** to get personalized recommendations
+3. **Explore features:**
+   - Get AI-powered movie recommendations
+   - Find similar movies to your favorites
+   - Build your personal wishlist
+   - See explanation for each recommendation
+
+*The app learns from your preferences and improves recommendations with each movie you rate.*
 
 ### API Endpoints
 
+All endpoints are fully documented with **interactive Swagger UI** at `/docs`.
+
+**Authentication endpoints:**
 ```bash
-# Get recommendations for user
-GET /recommendations/{user_id}?top_n=20
+POST /auth/register        # Create new account
+POST /auth/login           # Login (returns JWT token)
+GET /auth/me               # Get current user profile
+```
 
-# Find similar movies
-GET /similar-items/{movie_id}?top_n=20
+**Recommendation endpoints:**
+```bash
+GET /recommendations/{user_id}?top_n=20    # Get personalized recommendations
+GET /similar-items/{movie_id}?top_n=20     # Find similar movies
+GET /explain/{user_id}/{item_id}           # Get recommendation explanation
+POST /quiz                                  # Get recommendations from genre preferences
+GET /health                                 # Health check with model status
+```
 
-# Explain a recommendation
-GET /explain/{user_id}/{item_id}
+**User features:**
+```bash
+GET /movies?limit=50&offset=0               # Browse movie catalog
+POST /wishlist/{movie_id}                   # Add to wishlist
+DELETE /wishlist/{movie_id}                 # Remove from wishlist
+GET /wishlist                               # View saved movies
+```
 
-# Submit quiz for cold-start users
-POST /quiz
-{
-  "preferred_genres": ["Action", "Sci-Fi"],
-  "top_n": 10
-}
-
-# Authentication
-POST /auth/login
-POST /auth/register
-GET /auth/me
-
-# Admin features
-GET /admin/users?limit=50&offset=0
-PUT /admin/users/{user_id}/promote
-DELETE /admin/users/{user_id}
-
-# Health check
-GET /health
+**Admin endpoints** (requires admin role):
+```bash
+GET /admin/users?limit=50&offset=0          # List all users
+PUT /admin/users/{user_id}/promote          # Make user admin
+PUT /admin/users/{user_id}/demote           # Remove admin status
+DELETE /admin/users/{user_id}               # Delete user
+GET /admin/movies?limit=50&offset=0         # List movies
+DELETE /admin/movies/{movie_id}             # Delete movie
 ```
 
 ---
