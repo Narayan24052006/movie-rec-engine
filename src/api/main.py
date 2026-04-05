@@ -87,72 +87,78 @@ async def lifespan(app: FastAPI):
 
     logger.info("Loading data from %s ...", DATA_DIR)
 
-    # 1. Load data
-    ratings, movies, _tags = build_merged_dataset(DATA_DIR)
-    _movies_df = movies
+    try:
+        # 1. Load data
+        ratings, movies, _tags = build_merged_dataset(DATA_DIR)
+        _movies_df = movies
 
-    # Build movie lookup for enrichment
-    for _, row in movies.iterrows():
-        _movie_lookup[int(row["movieId"])] = {
-            "title": str(row["title"]),
-            "genres": str(row.get("genres", "")).replace("(no genres listed)", ""),
-        }
+        # Build movie lookup for enrichment
+        for _, row in movies.iterrows():
+            _movie_lookup[int(row["movieId"])] = {
+                "title": str(row["title"]),
+                "genres": str(row.get("genres", "")).replace("(no genres listed)", ""),
+            }
 
-    # 2. Preprocess
-    user2idx, idx2user, item2idx, idx2item = create_id_mappings(ratings)
-    train_df, _val_df, _test_df = user_stratified_split(ratings)
+        # 2. Preprocess
+        user2idx, idx2user, item2idx, idx2item = create_id_mappings(ratings)
+        train_df, _val_df, _test_df = user_stratified_split(ratings)
 
-    # Convert to native Python ints to avoid JSON serialization issues with numpy.int32
-    _known_users = {int(uid) for uid in user2idx.keys()}
-    _known_items = {int(iid) for iid in item2idx.keys()}
+        # Convert to native Python ints to avoid JSON serialization issues with numpy.int32
+        _known_users = {int(uid) for uid in user2idx.keys()}
+        _known_items = {int(iid) for iid in item2idx.keys()}
 
-    logger.info(f"Seeding {len(_known_users)} existing users into PostgreSQL...")
-    seed_existing_users(_known_users, lambda p: get_password_hash(p, skip_validation=True))
+        logger.info(f"Seeding {len(_known_users)} existing users into PostgreSQL...")
+        seed_existing_users(_known_users, lambda p: get_password_hash(p, skip_validation=True))
 
-    # 3. Train Content-Based model
-    logger.info("Training Content-Based model...")
-    _cbf = ContentBasedModel(max_features=10_000, ngram_range=(1, 2))
-    _cbf.fit(movies)
+        # 3. Train Content-Based model
+        logger.info("Training Content-Based model...")
+        _cbf = ContentBasedModel(max_features=10_000, ngram_range=(1, 2))
+        _cbf.fit(movies)
 
-    # 4. Train Collaborative Filtering model
-    cf_model_path = os.path.join(MODEL_DIR, "cf_model.pkl")
-    if os.path.exists(cf_model_path):
-        logger.info("Loading pre-trained CF model from %s", cf_model_path)
-        _cf = CollaborativeFilteringModel.load(cf_model_path)
-    else:
-        logger.info("Training Collaborative Filtering model (ALS)...")
-        _cf = CollaborativeFilteringModel(
-            n_factors=128, n_epochs=30, lr=0.005, reg=0.02
+        # 4. Train Collaborative Filtering model
+        cf_model_path = os.path.join(MODEL_DIR, "cf_model.pkl")
+        if os.path.exists(cf_model_path):
+            logger.info("Loading pre-trained CF model from %s", cf_model_path)
+            _cf = CollaborativeFilteringModel.load(cf_model_path)
+        else:
+            logger.info("Training Collaborative Filtering model (ALS)...")
+            _cf = CollaborativeFilteringModel(
+                n_factors=128, n_epochs=30, lr=0.005, reg=0.02
+            )
+            _cf.fit(train_df, user2idx, idx2user, item2idx, idx2item)
+            os.makedirs(MODEL_DIR, exist_ok=True)
+            _cf.save(cf_model_path)
+            logger.info("CF model saved to %s", cf_model_path)
+
+        # 5. Build Hybrid
+        popularity = compute_item_popularity(train_df)
+        recency = compute_item_recency(train_df)
+        avg_rating = compute_item_avg_rating(train_df)
+
+        _hybrid = HybridRecommender(
+            cf_model=_cf, cbf_model=_cbf,
+            w_cf=0.50, w_cbf=0.30, w_pop=0.10, w_rec=0.10,
         )
-        _cf.fit(train_df, user2idx, idx2user, item2idx, idx2item)
-        os.makedirs(MODEL_DIR, exist_ok=True)
-        _cf.save(cf_model_path)
-        logger.info("CF model saved to %s", cf_model_path)
+        _hybrid.set_item_metadata(
+            popularity=popularity,
+            recency=recency,
+            avg_rating=avg_rating,
+            all_movie_ids=list(item2idx.keys()),
+        )
 
-    # 5. Build Hybrid
-    popularity = compute_item_popularity(train_df)
-    recency = compute_item_recency(train_df)
-    avg_rating = compute_item_avg_rating(train_df)
+        # 6. Cold-start handler
+        _cold_start = ColdStartHandler(
+            cbf_model=_cbf,
+            movies_df=movies,
+            popularity=popularity.to_dict(),
+        )
 
-    _hybrid = HybridRecommender(
-        cf_model=_cf, cbf_model=_cbf,
-        w_cf=0.50, w_cbf=0.30, w_pop=0.10, w_rec=0.10,
-    )
-    _hybrid.set_item_metadata(
-        popularity=popularity,
-        recency=recency,
-        avg_rating=avg_rating,
-        all_movie_ids=list(item2idx.keys()),
-    )
+        logger.info("All models loaded and ready to serve!")
+    except FileNotFoundError as e:
+        logger.warning(f"⚠️ Data files not found: {e}")
+        logger.warning("Starting without recommendation models. Admin & auth features will work.")
+        logger.warning("This is normal on deployment servers without data files.")
 
-    # 6. Cold-start handler
-    _cold_start = ColdStartHandler(
-        cbf_model=_cbf,
-        movies_df=movies,
-        popularity=popularity.to_dict(),
-    )
-
-    logger.info("All models loaded and ready to serve!")
     yield
     logger.info("Shutting down recommendation engine.")
 
